@@ -1,4 +1,9 @@
 # https://www.nature.com/articles/nmeth.4397
+# Graphs to generate
+# Pairwise euclidean
+# New dose response using powerTransformer
+# AUR ROC Curves for confusion matrices
+# COnfusion matrix for classifying cells on test data
 
 # %% Imports
 from scipy import stats
@@ -19,12 +24,14 @@ import numpy.matlib
 # import scipy.stats
 import json
 
+from sklearn.utils import check_matplotlib_support
+
 # from scipy.stats import linregress
 
 sns.set()
 
 # %% Setup
-SAVE_FIG = 0
+SAVE_FIG = 1
 SAVE_CSV = 0
 CHANNELS = 1
 # DRUG = 'G007'
@@ -42,7 +49,7 @@ FLAG_IC50 = 0
 
 
 ZEROISCONTROL = 1
-SAVE_CSV = 1
+SAVE_CSV = 0
 DROP_TEXT_FROM_DF = 1
 
 # %% Read data
@@ -63,16 +70,20 @@ def metadata():
 
 # root_dir = './_analysed/190709/'
 # root_dir = './_analysed/230719/'
-# root_dir = './_analysed/190709/'
-# root_dir = './_analysed/230719/'
-nuclei_file_path = root_dir + "/raw/best_plane_sobel/Primary.csv"
+nuclei_file_path = root_dir + "/raw/best_plane_sobel/Secondary.csv"
 image_file_path = root_dir + "/raw/best_plane_sobel/Image.csv"
+organoid_file_path = root_dir + "/raw/best_plane_sobel/Primary.csv"
+
+# root_dir = './_analysed/230719/'
+nuclei_file_path = root_dir + "/raw/projection_XY/Secondary.csv"
+image_file_path = root_dir + "/raw/projection_XY/Image.csv"
+organoid_file_path = root_dir + "/raw/projection_XY/Primary.csv"
+
 
 # nuclei_file_path = root_dir + '/raw/best_plane_sobel/Primary.csv'
 # image_file_path = root_dir + '/raw/best_plane_sobel/Image.csv'
 
 # organoid_file_path = root_dir + 'MergedCellObjects.csv'
-organoid_file_path = root_dir + "/raw/best_plane_sobel/Secondary.csv"
 
 
 def nucleiPrimaryFilter(df):
@@ -89,16 +100,35 @@ organoid_df_idx = organoid_df.set_index(object_headers)
 idx_large_organoid = organoid_df_idx["AreaShape_Area"].groupby("ImageNumber").idxmax()
 organoid_large_df = organoid_df_idx.loc[idx_large_organoid]
 
+# nuclei_n_organoid_df = pd.merge(organoid_large_df, nuclei_df,
+#                                 left_on=['ObjectNumber', 'ImageNumber'],
+#                                 right_on=[
+#                                     'Parent_MergedCellObjects', 'ImageNumber'],
+#                                 how='inner',  # Might be wrong
+#                                 # left_index = True,
+#                                 suffixes=('_Organoid', '_Nuclei'))
+# # nuclei_n_organoid_df = organoid_df
+
+
 nuclei_n_organoid_df = pd.merge(
-    organoid_large_df,
     nuclei_df,
+    organoid_df,
     left_on=["ObjectNumber", "ImageNumber"],
     right_on=["ObjectNumber", "ImageNumber"],
     how="inner",  # Might be wrong
     # left_index = True,
-    suffixes=("_Organoid", "_Nuclei"),
+    suffixes=("", "_Organoid"),
 )
-# nuclei_n_organoid_df = organoid_df
+
+image_nuclei_df = pd.merge(
+    nuclei_df,
+    image_df,
+    on="ImageNumber",
+    how="left",
+    # left_index = True,
+    suffixes=("", "_Image"),
+)
+
 image_nuclei_n_organoid_df = pd.merge(
     nuclei_n_organoid_df,
     image_df,
@@ -108,16 +138,37 @@ image_nuclei_n_organoid_df = pd.merge(
     suffixes=("", "_Image"),
 )
 
-nuclei_n_organoid_df_idx = nuclei_n_organoid_df.set_index(object_headers)
-image_nuclei_n_organoid_df_idx = image_nuclei_n_organoid_df.set_index(object_headers)
+
+# image_nuclei_n_organoid_df = pd.merge(
+#     nuclei_n_organoid_df,
+#     image_df,
+#     on="ImageNumber",
+#     how="left",
+#     # left_index = True,
+#     suffixes=("", "_Image"),
+# )
+
+# nuclei_n_organoid_df_idx = nuclei_n_organoid_df.set_index(object_headers)
+# image_nuclei_n_organoid_df_idx = image_nuclei_n_organoid_df.set_index(object_headers)
 merged_df = image_nuclei_n_organoid_df
 # merged_df = image_df
-# merged_df = nuclei_df
+merged_df = nuclei_df
+merged_df = image_nuclei_df
+
+# organoid_df_idx = organoid_df.set_index(object_headers)
+# idx_large_organoid = organoid_df_idx["AreaShape_Area"].groupby("ImageNumber").idxmax()
+# organoid_large_df = organoid_df_idx.loc[idx_large_organoid]
+
+# nuclei_n_organoid_df_idx = nuclei_n_organoid_df.set_index(object_headers)
+# image_nuclei_n_organoid_df_idx = image_nuclei_n_organoid_df.set_index(object_headers)
+# merged_df = image_nuclei_n_organoid_df
+
+
 # %%### Beging metadata extraction
 regex_pattern = r"[\/\\](?P<Date>[\d]+)_.+_(?P<Cell>ISO[\d]+)_(?P<Drug>[A-Za-z0-9]+)_(?P<Concentration>[\d\w_-]+uM)(?:.+Position_(?P<Position>[\d]))?"
 # filenames_image = merged_df['PathName_Channels'];
 filenames_nuclei = nuclei_df["Metadata_FileLocation"]
-filenames_organoid = organoid_df["Metadata_FileLocation"]
+# filenames_organoid = organoid_df['Metadata_FileLocation']
 # filenames_image_nuclei_n_organoid = image_nuclei_n_organoid_df['PathName_Channels'];
 filenames_image_nuclei_n_organoid = image_nuclei_n_organoid_df["Metadata_FileLocation"]
 raw_df = merged_df
@@ -152,6 +203,23 @@ raw_df_indexed_bad_cols = raw_df_indexed.drop(bad_cols, axis=1, errors="ignore")
 raw_df_indexed_bad_cols_med = raw_df_indexed_bad_cols.groupby(
     level=["ImageNumber"] + filename_headers
 ).median()
+
+raw_df_indexed_bad_cols_med = raw_df_indexed_bad_cols.groupby(
+    level=["Date", "Drug", "Cell", "Replicate", "Conc /uM", "ImageNumber"]
+).median()
+
+# raw_df_indexed_bad_cols_med = raw_df_indexed_bad_cols.groupby(
+#     level=["Date", "Drug", "Cell", "Replicate", "Conc /uM", "ImageNumber"]
+# ).median()
+
+raw_df_indexed_bad_cols_finite = raw_df_indexed_bad_cols.reindex(
+    raw_df_indexed_bad_cols.index.dropna()
+)
+
+raw_df_indexed_bad_cols_med_finite = raw_df_indexed_bad_cols_med.reindex(
+    raw_df_indexed_bad_cols_med.index.dropna()
+)
+
 # raw_df_indexed_bad_cols
 # %% Save CSV
 
@@ -159,31 +227,52 @@ SAVE_CSV = 0
 
 csv_name = root_dir + "df_org+nuclei+image"
 
-df = raw_df_indexed_bad_cols
-df_median = raw_df_indexed_bad_cols_med
-df_median_no_nuclei = df_median.drop(
-    df_median.filter(like="Nuclei", axis=1).columns, axis=1
+df = (
+    raw_df_indexed_bad_cols_finite.select_dtypes("number")
+    .dropna(axis=1)
+    .sample(frac=1)
+    # .xs("ISO34", level="Cell", drop_level=False)
 )
+# df = raw_df_indexed_bad_cols
+df_median = (
+    raw_df_indexed_bad_cols_med_finite.select_dtypes("number")
+    .dropna(axis=1)
+    .sample(frac=1)
+    # .xs("ISO34", level="Cell", drop_level=False)
+)
+
+# df_median = raw_df_indexed_bad_cols_med
+# df_median_no_nuclei = df_median.drop(
+#     df_median.filter(like='Nuclei', axis=1).columns,
+#     axis=1)
 
 # df = raw_df_indexed_bad_cols.xs(CELL,level="Cell",drop_level=False)
 # df_median = raw_df_indexed_bad_cols_med.xs(CELL,level="Cell",drop_level=False)
 
 if SAVE_CSV:
-    df.dropna(axis=0).to_csv(csv_name + ".csv")
-    df_median.dropna(axis=0).to_csv(csv_name + "_median_per_org.csv")
+    df.dropna(axis=1).to_csv(csv_name + ".csv")
+    df_median.dropna(axis=1).to_csv(csv_name + "_median_per_org.csv")
 
 # %% ####### Filtering the data #######
+df_clean_in = df
+df_clean_median_in = df_median
 
-df = df.select_dtypes("number").dropna(axis=1)
-df_median = df_median.select_dtypes("number").dropna(axis=1)
+df_clean_in = df_clean_in.select_dtypes("number").dropna(axis=1).astype("float64")
+df_clean_median_in = df_clean_median_in.select_dtypes("number").dropna(axis=1)
 
 
 def drop_sigma(df, sigma):
-    return df.mask(df.apply(lambda df: (np.abs(stats.zscore(df)) > sigma))).dropna()
+    return df.mask(df.apply(lambda df: (np.abs(stats.zscore(df)) > sigma))).dropna(
+        axis=1
+    )
 
 
-df_median_clean = drop_sigma(df_median, 5.0)
-df_clean = drop_sigma(df, 5.0)
+df_clean = df_clean_in
+# df_clean = drop_sigma(df_clean_in, 5.0)
+
+df_median_clean = df_clean_median_in
+# df_median_clean = drop_sigma(df_clean_median_in, 5.0)
+
 
 # df.apply(lambda df: (np.abs(stats.zscore(df)) > 3.0))
 # df_median_mask = df_median.apply(lambda df: (np.abs(stats.zscore(df)) > 3.0))
@@ -205,10 +294,27 @@ if PYOD_FLAG:
 
     df_median["AreaShape_Area_Organoid"].hist()
 
+
+# %% Isolation forest
+
+from sklearn.ensemble import IsolationForest
+
+df_clean_isolated = df_clean.loc[IsolationForest().fit(df_clean).predict(df_clean) == 1]
+
+df_median_clean_isolated = df_median_clean.loc[
+    IsolationForest().fit(df_median_clean).predict(df_median_clean) == 1
+]
+
 # %% ####### Df summary ##########
 
 df_summary = (
-    df_median.groupby(["Drug", "Cell", "Conc /uM",])
+    df_median.groupby(
+        [
+            "Drug",
+            "Cell",
+            "Conc /uM",
+        ]
+    )
     .count()
     .rename(columns={df_median.columns[0]: "Organoids"})
 )
@@ -233,53 +339,862 @@ plt.show()
 # scaled_df=df.copy()
 # scaled_df[:]=StandardScaler().fit_transform(df)
 # scaled_df
+from sklearn.preprocessing import scale, power_transform, robust_scale, normalize
 
-scaled_df = df.apply(scale, result_type="broadcast")
-scaled_df_median = df_median.apply(scale, result_type="broadcast")
+df_scaled_in = df_clean
+df_scaled_in = df_clean_isolated
 
-scaled_clean_df = df_clean.apply(scale, result_type="broadcast")
-scaled_df_median_clean = df_median_clean.apply(scale, result_type="broadcast")
+df_median_clean = df_median_clean
+df_median_clean = df_median_clean_isolated
 
-scaled_df_median_no_nuclei = df_median_no_nuclei.apply(scale, result_type="broadcast")
+# preprocessor = scale
+# preprocessor = robust_scale
+# preprocessor = normalize
+preprocessor = lambda x: power_transform(x, method="yeo-johnson")
+preprocessor_standard = lambda x: scale(x)
+
+
+scaled_df = pd.DataFrame(
+    preprocessor(df_scaled_in), index=df_scaled_in.index, columns=df_scaled_in.columns
+)
+
+scaled_df_standard = pd.DataFrame(
+    preprocessor_standard(df_scaled_in), index=df_scaled_in.index, columns=df_scaled_in.columns
+)
+
+scaled_df_median = pd.DataFrame(
+    preprocessor(df_median_clean),
+    index=df_median_clean.index,
+    columns=df_median_clean.columns,
+)
+
+# scaled_df_median = df_median_clean.apply(preprocessor, axis=0, result_type="broadcast")
+
+# scaled_clean_df = df_clean.apply(scale, result_type="broadcast")
+# scaled_df_median_clean = df_median_clean.apply(scale, result_type="broadcast")
+
+# scaled_df_median_no_nuclei = df_median_no_nuclei.apply(
+#     scale, result_type="broadcast")
+
+
+# %% Feature selection
+# %%time
+FEATURE_SELECT = 1
+if FEATURE_SELECT:
+    from sklearn.svm import LinearSVC
+    from sklearn.linear_model import SGDClassifier, LinearRegression
+    from sklearn.datasets import load_iris
+    from sklearn.feature_selection import SelectFromModel, RFECV, RFE
+    from sklearn.feature_selection import (
+        SelectKBest,
+        chi2,
+        f_classif,
+        SelectPercentile,
+        mutual_info_classif,
+    )
+    from sklearn.model_selection import train_test_split
+    from sklearn.neural_network import MLPClassifier
+    from sklearn.ensemble import RandomForestClassifier, BaggingClassifier
+    from sklearn.multioutput import MultiOutputClassifier
+    from sklearn.pipeline import Pipeline
+    from sklearn.manifold import TSNE
+
+    # model = LinearSVC()
+    model = RandomForestClassifier(
+        # random_state=1,
+        # n_estimators=750,
+        # max_depth=15,
+        # min_samples_split=5,
+        # min_samples_leaf=1,
+    )
+    # model = BaggingClassifier()
+    # model = SGDClassifier()
+    # mlp = MLPClassifier().fit(scaled_df, labels)
+    # model = MultiOutputClassifier(model)
+
+    feature_df_in = scaled_df.sample(frac=1)
+    feature_df_median_in = scaled_df_median.sample(frac=1)
+
+    labels = feature_df_in.reset_index()[["Date"]]
+    # labels = feature_df_in.reset_index()[["Drug", "Cell", "Conc /uM"]]
+    labels = labels.apply(lambda x: pd.factorize(x)[0])
+    X_train, X_test, y_train, y_test = train_test_split(feature_df_in, labels)
+    model.fit(X_train, y_train)
+    full_df_pred = pd.DataFrame(model.predict(feature_df_in))
+    truth = pd.Series((np.array(full_df_pred) == np.array(labels)).flatten())
+    # not(pd.Series(model.predict(feature_df_in))==labels)
+    # print(model.score(X_test, y_test))
+    # model_select = SelectFromModel(model, prefit=True)
+    # model_select = SelectFromModel(model)
+    # model_select = RFECV(model, n_jobs=10).fit(X_train, y_train)
+    # pipe = Pipeline([('modelselect', SelectFromModel(model)),
+    #                     ('rfecv', RFE(model))])
+
+    pipe = Pipeline(
+        [
+            ("modelselect", SelectFromModel(model)),
+            ("kbest", SelectKBest(f_classif, k=20)),
+        ]
+    )
+
+    # pipe = Pipeline(
+    #     [
+    #         ("PCA", PCA()),
+    #         ("modelselect", SelectFromModel(model)),
+    #         ("kbest", SelectKBest(f_classif, k=20)),
+    #     ]
+    # )
+
+    # #                     ('rfecv', RFE(model))])
+    # pipe = Pipeline(
+    #     [
+    #         ("modelselect", SelectFromModel(model)),
+    #         ("kbest", SelectKBest(f_classif, k=20)),
+    #     ]
+    # )
+
+    # pipe = Pipeline(
+    #     [
+    #         ("PCA", PCA()),
+    #         ("modelselect", SelectFromModel(model)),
+    #         ("kbest", SelectKBest(f_classif, k=20)),
+    #     ]
+    # )
+
+    # pipe = Pipeline(
+    #     [
+    #         ("PCA", PCA()),
+    #         ("modelselect", SelectFromModel(model)),
+    #         ("mutual_info_classif", SelectKBest(mutual_info_classif, k=20)),
+    #     ]
+    # )
+
+    # pipe = Pipeline(
+    #     [
+    #         ("PCA", PCA()),
+    #         ("modelselect", SelectFromModel(model)),
+    #         ("mutual_info_classif", SelectPercentile(f_classif)),
+    #     ]
+    # )
+
+    # pipe = Pipeline(
+    #     [
+    #         ("PCA", PCA()),
+    #         ("mutual_info_classif", SelectPercentile(mutual_info_classif)),
+    #         ("modelselect", SelectFromModel(model)),
+    #     ]
+    # )
+
+    # pipe = Pipeline(
+    #     [
+    #         # ('mutual_info_classif', SelectPercentile(f_classif)),
+    #         ("PCA", PCA()),
+    #         # ('mutual_info_classif', SelectPercentile(mutual_info_classif)),
+    #         ("modelselect", SelectFromModel(model)),
+    #     ]
+    # )
+    pipe = Pipeline([('PCA', PCA()),
+                    ('modelselect', SelectFromModel(model))]) # Best?
+
+    # pipe = Pipeline([('TSNE', TSNE()),
+    #                 ('modelselect', SelectFromModel(model)),
+    #                 ('kbest', SelectKBest(f_classif, k=20))])
+
+    pipe.fit(X_train, y_train)
+
+    scaled_df_selected_features = pd.DataFrame(
+        pipe.transform(feature_df_in), index=feature_df_in.index
+    )
+    scaled_df_selected_features_median = pd.DataFrame(
+        pipe.transform(feature_df_median_in), index=feature_df_median_in.index
+    )
+
+    # print(model.score(X_test, y_test))
+    print(scaled_df.shape)
+    print(scaled_df_selected_features.shape)
+# %% RANSAC
+# %%timeit
+from sklearn import linear_model
+
+RANSAC = 0
+if RANSAC:
+    ransac_in_df = scaled_df_selected_features.drop(0, level="Conc /uM")
+    ransac_in_median_df = scaled_df_selected_features_median.drop(0, level="Conc /uM")
+
+    X = ransac_in_df
+    y = ransac_in_df.reset_index()[["Conc /uM"]].apply(np.log10).dropna()
+    ransac = linear_model.HuberRegressor()
+
+    ransac.fit(X, y)
+
+    weighted_scaled_df_selected_features = ransac_in_df.multiply(ransac.coef_)
+
+    weighted_scaled_df_selected_features_median = ransac_in_median_df.multiply(
+        ransac.coef_
+    )
+
+    X = weighted_scaled_df_selected_features
+
+    ransac = linear_model.RANSACRegressor()
+
+    ransac.fit(X, y)
+
+    weighted_scaled_df_selected_features = X.loc[ransac.inlier_mask_]
+
+
+# outlier_mask = np.logical_not(inlier_mask)
+# %% IC50 from classification
+from sklearn.model_selection import cross_val_score, KFold, train_test_split
+from sklearn.metrics import plot_confusion_matrix, classification_report
+from sklearn.ensemble import RandomForestClassifier,VotingClassifier,BaggingClassifier,ExtraTreesClassifier
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.metrics import balanced_accuracy_score
+
+import collections
+sns.set(rc={'figure.figsize':(11.7/2,8.27/2)})
+from sklearn.neural_network import MLPClassifier
+
+CELLS = {"ISO34", "ISO49"}
+VARIABLES = ["Conc /uM", "Date", "Drug", "Cell"]
+VARIABLES = ["Conc /uM", "Date", "Drug"]
+
+# VARIABLES = ["Conc /uM"]
+# VARIABLES = ["Date"]
+# VARIABLES = ["Drug"]
+
+# VARIABLE = "Date"
+# VARIABLE = "Date"
+# VARIABLE = "Drug"
+# VARIABLE = "Conc /uM"
+
+CLASS_FRACTIONS = 1
+
+nested_dict = lambda: collections.defaultdict(nested_dict)
+confusion_plots = nested_dict()
+chart = nested_dict()
+report_dict = nested_dict()
+report_tall_full = pd.DataFrame()
+
+SAVE_FIG=0
+
+data_in_full = scaled_df.sample(frac=1).xs(CELL, level="Cell").sample(frac=1)
+data_in_median = scaled_df_median.xs(CELL, level="Cell").sample(frac=1)
+data_in_median_sorted = scaled_df_median.xs(CELL, level="Cell").sort_index(level="Date")
+data_in_full_sorted = scaled_df.xs(CELL, level="Cell").sort_index(level="Date")
+
+DATA = {"Median per Organoid unsorted":data_in_median,
+        "Per Cell unsorted":data_in_full,
+        "Median per Organoid sorted by date":data_in_median_sorted,
+        "Per Cell sorted by date":data_in_full_sorted}
+# DATA = {"median":data_in_median,
+#         "data_in_median_sorted":data_in_median_sorted
+#         }
+# DATA = {"median":data_in_median}
+# report_df_dict = {}
+report_tall_list = []
+
+if CLASS_FRACTIONS:
+    for VARIABLE in VARIABLES:
+        for DATA_KEY in DATA:
+            for CELL in CELLS:
+                # data_in = scaled_df.sample(frac=1)
+                # data_in = df_clean.sample(frac=1).sort_index(level="Date")
+                # # data_in = scaled_df.sample(frac=1).xs(CELL, level="Cell").sample(frac=1)
+                # data_in = df_clean.sample(frac=1).xs(CELL, level="Cell").sample(frac=1)
+                # data_in = scaled_df_median.sample(frac=1).xs(CELL, level="Cell").sample(frac=1)
+                data_in = DATA[DATA_KEY]
+                # data_in = scaled_df.sample(frac=1).xs(CELL, level="Cell").sample(frac=1)
+
+                # data_in = (
+                #     df_median_clean.sample(frac=1)
+                #     .xs(CELL, level="Cell")
+                #     .xs("Vemurafenib", level="Drug")
+                #     .sample(frac=1)
+                # )
+
+                # data_in = scaled_df_selected_features.sample(frac=1)
+
+                # data_in_median = scaled_df_median.sample(frac=1)
+                # data_in_median = scaled_df_selected_features_median.sample(frac=1)
+                # datdata_in_mediana_in = df_clean.sample(frac=1)
+                model = RandomForestClassifier()
+                # model = GaussianProcessClassifier()
+                # model = ExtraTreesClassifier()
+                # labels = data_in.reset_index()[["Drug"]]
+                # labels = labels.apply(lambda x: pd.factorize(x)[0])\
+                #                 .set_index(data_in.index)
+                # drugs_df = data_in.reset_index()["Drug"]
+                labels, uniques = pd.factorize(data_in.reset_index()[VARIABLE])
+                labels = pd.Series(labels, index=data_in.index)
+                labels_indexed = (
+                    pd.Series(data_in.index.get_level_values(VARIABLE), index=data_in.index)
+                    .astype(str)
+                    .astype("category")
+                )
+
+                X_train, X_test, y_train, y_test = train_test_split(
+                    data_in,
+                    labels_indexed,
+                    test_size=0.5,
+                    shuffle=False,
+                )
+
+                # corr = data_in.corrwith(labels,axis=1,method="pearson").dropna()
+                # corr = data_in.apply(lambda x: x.corr(labels,method="pearson"))
+                # corr = data_in.apply(lambda x: x.corr(labels))
+                # print(corr.dropna().sort_values(ascending=False))
+
+                # corr = data_in.apply(lambda x: x.corr(labels,axis=1,method="pearson").dropna())
+
+                model.fit(X_train, y_train)
+                print(model.score(X_test, y_test))
+
+                scores_train = cross_val_score(model, X_train, y_train, cv=5)
+                scores_test = cross_val_score(model, X_test, y_test, cv=5)
+
+                print(
+                    "Accuracy: %0.2f (+/- %0.2f)"
+                    % (scores_train.mean(), scores_train.std() * 2)
+                )
+
+
+
+                print(
+                    "Blind: %0.2f (+/- %0.2f)" % (scores_test.mean(), scores_test.std() * 2)
+                )
+                # print(f"Blind : {model.score(X_test, y_test)}")
+                importance = pd.Series(
+                    model.feature_importances_, index=X_train.columns
+                ).sort_values(ascending=False)
+
+                importance_cumsum = (
+                    importance.cumsum()
+                    .reset_index()
+                    .rename(columns={"index": "Feature", 0: "Cumlative importance"})
+                )
+                fig_dims = (8, 4)
+                fig, ax = plt.subplots(figsize=fig_dims)
+                sns.barplot(
+                    y="Feature", x="Cumlative importance", data=importance_cumsum[:10]
+                )
+                plt.tight_layout()
+                y_pred = pd.Series(model.predict(X_test), index=X_test.index)
+                # display(y_pred)
+
+                # confusion_matrix(y_true, y_pred)
+                confusion_plots[CELL][VARIABLE][DATA_KEY] = plot_confusion_matrix(
+                    model, X_test, y_test, xticks_rotation="vertical", cmap="Greys"
+                )
+
+                if SAVE_FIG:
+                    plt.grid(None)
+                    confusion_plots[CELL][VARIABLE][DATA_KEY].plot(
+                        xticks_rotation="vertical", cmap="Greys"
+                    )
+                    plt.grid(None)
+                    plt.tight_layout()
+                    # plt.savefig(f"{metadata()}_{CELL}_{VARIABLE}_confusion_matrix.pdf")
+                    plt.show()
+
+                # counts = pd.Series(y_pred.groupby(["Cell",
+                #                                 "Conc /uM",
+                #                                 "Drug"]).value_counts())
+                # counts.rename(columns={0: "Counts"}, inplace=True)
+                # counts.index.rename("DrugLabel", level=-1, inplace=True)
+                # # counts.reset_index(-1,inplace=True)
+                # drug_count_table = counts.unstack("DrugLabel", fill_value=0)
+                # control_fraction = drug_count_table.divide(drug_count_table[4], axis=0)
+                # control_fraction = control_fraction.stack("DrugLabel").rename("Fraction")
+
+                # control_fraction_sns = sns.lmplot(
+                #     x="Conc /uM",
+                #     y="Fraction",
+                #     row="Cell",
+                #     col="Drug",
+                #     data=control_fraction.reset_index(),
+                #     sharex=False,
+                #     sharey=False,
+                #     x_estimator=np.median,
+                #     x_ci="ci",
+                #     # x_bins=9,
+                #     markers=None,
+                #     hue="Drug",
+                # )
+                from sklearn.metrics import roc_curve, auc
+                from sklearn.metrics import roc_auc_score
+                from sklearn.preprocessing import label_binarize
+
+                y_score_bin = label_binarize(model.predict(X_test), classes=uniques)
+                y_test_bin = label_binarize(y_test, classes=uniques)
+
+                balanced_accuracy_score(model.predict(X_test),y_test)
+                fpr = dict()
+                tpr = dict()
+                roc_auc = dict()
+                for i, label in enumerate(uniques):
+                    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score_bin[:, i])
+                    roc_auc[i] = auc(fpr[i], tpr[i])
+                from sklearn.metrics import classification_report
+
+                report = pd.DataFrame(
+                    classification_report(
+                        y_test_bin, y_score_bin, target_names=uniques, output_dict=True
+                    )
+                )[uniques]
+                # report_tall = report.unstack().reset_index()
+                report_tall = (
+                    report.reset_index()
+                    .melt(
+                        id_vars="index",
+                        var_name=[VARIABLE],
+                        value_name="Score",
+                        ignore_index=False,
+                    )
+                    .rename(columns={"index": "Metric"})
+                )
+                # report_tall["Variable"] = VARIABLE
+                # This should be a melt
+                chart[CELL][VARIABLE][DATA_KEY] = (
+                    sns.catplot(
+                        x=VARIABLE,
+                        col="Metric",
+                        y="Score",
+                        # col_wrap=2,
+                        data=report_tall,
+                        sharey=False,
+                        kind="bar",
+                    )
+                    .set(yscale="log")
+                    .set_xticklabels(rotation=45)
+                )
+                plt.tight_layout()
+                plt.suptitle(f"{CELL}",y=1.12)
+                if SAVE_FIG:
+                    # chart[CELL][VARIABLE]
+                    chart[CELL][VARIABLE][DATA_KEY].tight_layout()
+                    chart[CELL][VARIABLE][DATA_KEY].savefig(
+                        f"{metadata()}_{CELL}_{VARIABLE}_{DATA_KEY}_random_forest_scores.pdf"
+                    )
+                plt.show()
+
+                report_dict[CELL][VARIABLE][DATA_KEY] = report_tall
+                report_tall["Cell type"] = CELL
+                report_tall["Population type"] = DATA_KEY
+                report_tall["Variable"] = VARIABLE
+                report_tall.rename(columns={CELL:"variable_name"})
+                report_tall_list.append(report_tall)
+
+SAVE_FIG=1
+report_df = pd.concat(report_tall_list)
+
+data= report_df.set_index("Variable").xs("Drug")
+plot = sns.catplot(x="Drug",
+            y="Score",
+            col="Metric",
+            row="Cell type",
+            hue="Population type",
+            data=data,
+            sharey=False,
+            kind="bar",
+            ).set_xticklabels(rotation=45)
+if(SAVE_FIG):
+    plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.pdf")
+    # plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.png")
+
+data = report_df.set_index("Variable").xs("Date")
+plot = sns.catplot(x="Date",
+            y="Score",
+            col="Metric",
+            row="Cell type",
+            hue="Population type",
+            data=data,
+            sharey=False,
+            kind="bar",
+            ).set_xticklabels(rotation=45)
+                # report_tall_full = pd.concat([report_tall,report_tall_full])
+if(SAVE_FIG):
+    plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_date_population_type.pdf")
+
+# # %%
+# fractions = y_pred.groupby(["Cell", "Conc /uM", "Drug"]).apply(
+#     (lambda x: x.value_counts())
+# )
+# # y_pred.groupby(["Cell", "Conc /uM", "Drug"]).size().unstack(fill_value=0)
+
+# print("Done")
+# def default_to_regular(d):
+#     if isinstance(d, collections.defaultdict):
+#         d = {k: default_to_regular(v) for k, v in d.items()}
+#     return d
+
+# report_dict_true = default_to_regular(report_dict)
+
+
+# figure_a_report = [report_dict["ISO34"]["Drug"]["full"],
+#     report_dict["ISO34"]["Drug"]["median"],
+#     report_dict["ISO34"]["Drug"]["data_in_median_sorted"],
+#     report_dict["ISO48"]["Drug"]["full"],
+#     report_dict["ISO48"]["Drug"]["median"],
+#     report_dict["ISO48"]["Drug"]["data_in_median_sorted"]]
+
+# report_dict[:]["Drug"][:]
+
+# VARIABLES = ["Conc /uM", "Date", "Drug"]
+
+# DATA = {"median":data_in_median,
+#         "full":data_in_full,
+#         "data_in_median_sorted":data_in_median_sorted}
+# report_dict["CELL"][VARIABLE][DATA_KEY],
+# report_dict[CELL][VARIABLE][DATA_KEY],
+# report_dict[CELL][VARIABLE][DATA_KEY],
+# report_dict[CELL][VARIABLE][DATA_KEY],
+# report_dict[CELL][VARIABLE][DATA_KEY],
+
+# %% Machine learning similarity
+ML_SIMILARITY = 1
+from sklearn.ensemble import RandomForestClassifier
+SAVE_FIG=0
+CELL = "ISO49"
+if ML_SIMILARITY:
+    data_in = scaled_df.sample(frac=1)
+    data_in = (
+        scaled_df.iloc[
+            (scaled_df.index.get_level_values("Conc /uM") == 0)
+            | (scaled_df.index.get_level_values("Conc /uM") == 0.041)
+        ]
+        .xs(CELL, level="Cell")
+        .sample(frac=1)
+    )
+    data_in = (
+        scaled_df.iloc[(scaled_df.index.get_level_values("Conc /uM") == 0.041)]
+        .xs(CELL, level="Cell")
+        .sample(frac=1)
+    )
+    data_in = scaled_df.sample(frac=1).xs(CELL, level="Cell")
+    # labels, uniques = pd.factorize(data_in.reset_index()["Drug"])
+    # labels = pd.Series(labels,index=data_in.index)
+    labels = pd.Series(data_in.index.get_level_values("Drug"), index=data_in.index)
+    # labels = data_in.reset_index()[["Drug"]].\
+    #                     apply(lambda x: pd.factorize(x)[0]).\
+    #                     set_index(data_in.index)
+    drugs = data_in.index.get_level_values("Drug").unique()
+
+    similarity_df = pd.DataFrame()
+    models_list = []
+    for drug in drugs:
+        X_train = data_in.drop(drug, level="Drug")
+        y_train = labels.drop(drug, level="Drug")
+        X_test = data_in.xs(drug, level="Drug", drop_level=False)
+        y_test = labels.xs(drug, level="Drug", drop_level=False)
+        model = RandomForestClassifier()
+        model.fit(X_train, y_train)
+        model.score(X_train, y_train)
+        prediction_df = pd.DataFrame(
+            model.predict_proba(X_test), index=X_test.index, columns=model.classes_
+        )
+        predict_current_df = pd.melt(
+            prediction_df,
+            var_name=["Predicted Drug"],
+            value_name="Similarity",
+            ignore_index=False,
+        )
+
+        # predict_current_df = pd.DataFrame(
+        #     model.predict(X_test), index=X_test.index
+        #     ).rename(columns=uniques[model.classes_])
+
+        similarity_df = similarity_df.append(predict_current_df)
+
+
+# similarity_df = pd.DataFrame(similarity_df.index.get_level_values("Drug"),
+#                         index=similarity_df.index)
+similarity_df_reset = similarity_df.reset_index("Drug")
+
+sns.catplot(
+    x="Conc /uM",
+    y="Similarity",
+    kind="violin",
+    row="Predicted Drug",
+    col="Drug",
+    data=similarity_df.reset_index(),
+)
+
+grouped_sim = similarity_df_reset.groupby(["Predicted Drug", "Drug"]).mean()
+
+grouped_sim_square = grouped_sim.reset_index().pivot(
+    index="Drug", columns="Predicted Drug", values="Similarity"
+)
+
+
+def draw_heatmap(*args, **kwargs):
+    data = kwargs.pop("data")
+    # data = data.mask(np.tril(np.ones(data.shape)).astype(np.bool))
+    g = sns.heatmap(data, **kwargs)
+    plt.yticks(rotation=0)
+
+    # g.set_yticklabels(g.get_yticklabels())
+
+
+sns.FacetGrid(grouped_sim_square).map_dataframe(
+    draw_heatmap, cmap="Spectral", cbar_kws={"label": "Similarity"}
+)
+
+
+def facet_heat(df):
+    return sns.FacetGrid(
+        df.reset_index(level="Cell"), col="Cell", sharey=False
+    ).map_dataframe(draw_heatmap, cmap="Spectral", cbar_kws={"label": "Similarity"})
+
+
+# %% Machine learning similarity pairwise
+ML_SIMILARITY_PAIR = 1
+from sklearn.ensemble import RandomForestClassifier
+
+CELL = "ISO49"
+CELLS = {"ISO34", "ISO49"}
+if ML_SIMILARITY_PAIR:
+    for CELL in CELLS:
+        data_in = scaled_df.sample(frac=1)
+        data_in = (
+            scaled_df.iloc[
+                (scaled_df.index.get_level_values("Conc /uM") == 0)
+                | (scaled_df.index.get_level_values("Conc /uM") == 0.041)
+            ]
+            .xs(CELL, level="Cell")
+            .sample(frac=1)
+        )
+        data_in = (
+            scaled_df.iloc[(scaled_df.index.get_level_values("Conc /uM") == 0.041)]
+            .xs(CELL, level="Cell")
+            .sample(frac=1)
+        )
+        data_in = scaled_df.sample(frac=1).xs(CELL, level="Cell")
+        # labels, uniques = pd.factorize(data_in.reset_index()["Drug"])
+        # labels = pd.Series(labels,index=data_in.index)
+        labels = pd.Series(data_in.index.get_level_values("Drug"), index=data_in.index)
+        # labels = data_in.reset_index()[["Drug"]].\
+        #                     apply(lambda x: pd.factorize(x)[0]).\
+        #                     set_index(data_in.index)
+        drugs = data_in.index.get_level_values("Drug").unique()
+
+        similarity_df = pd.DataFrame()
+
+        for drug_blind in drugs:
+            for drug in drugs:
+                drugs_to_drop = drugs.drop(["Control", drug_blind])
+                X_train = data_in.drop(drugs_to_drop, level="Drug")
+                y_train = labels.drop(drugs_to_drop, level="Drug")
+                X_test = data_in.xs(drug, level="Drug", drop_level=False)
+                y_test = labels.xs(drug, level="Drug", drop_level=False)
+                model = RandomForestClassifier()
+                model.fit(X_train, y_train)
+                model.score(X_train, y_train)
+                prediction_df = pd.DataFrame(
+                    model.predict_proba(X_test),
+                    index=X_test.index,
+                    columns=model.classes_,
+                )[[drug_blind]]
+                predict_current_df = pd.melt(
+                    prediction_df,
+                    var_name=["Predicted Drug"],
+                    value_name="Similarity",
+                    ignore_index=False,
+                )
+                similarity_df = similarity_df.append(predict_current_df)
+
+        # similarity_df = pd.DataFrame(similarity_df.index.get_level_values("Drug"),
+        #                         index=similarity_df.index)
+        similarity_df_reset = similarity_df.reset_index("Drug")
+
+        # sns.catplot(x="Conc /uM",
+        #         y="Similarity",
+        #         kind="violin",
+        #         row="Predicted Drug",
+        #         col="Drug",
+        #         data=similarity_df.reset_index())
+
+        grouped_sim = (
+            similarity_df_reset.where(
+                similarity_df_reset["Drug"] != similarity_df_reset["Predicted Drug"]
+            )
+            .groupby(["Predicted Drug", "Drug"])
+            .mean()
+        )
+
+        grouped_sim_square = grouped_sim.reset_index().pivot(
+            index="Drug", columns="Predicted Drug", values="Similarity"
+        )
+
+        def draw_heatmap(*args, **kwargs):
+            data = kwargs.pop("data")
+            # data = data.mask(np.logical_not(np.triu(np.ones(data.shape)).astype(np.bool)))
+            g = sns.heatmap(data, **kwargs)
+            plt.yticks(rotation=0)
+
+            # g.set_yticklabels(g.get_yticklabels())
+
+        heatmap = sns.FacetGrid(grouped_sim_square).map_dataframe(
+            draw_heatmap, cmap="Spectral", cbar_kws={"label": "Similarity"}
+        )
+        if SAVE_FIG:
+            heatmap.savefig(f"{metadata()}_{CELL}_pairwise_similarity.pdf")
+            plt.tight_layout()
+        plt.show()
+    # def facet_heat(df):
+    #     return sns.FacetGrid(
+    #         df.reset_index(level="Cell"), col="Cell", sharey=False
+    #     ).map_dataframe(draw_heatmap, cmap="Spectral", cbar_kws={"label": "Similarity"})
+# %% Feature weighting
+FEATURE_WEIGHTING = 0
+if FEATURE_WEIGHTING:
+
+    def euclid_on_df(df):
+        return pd.DataFrame(df.apply(numpy.linalg.norm, axis=1)).rename(
+            columns={0: "Euclidean distance"}
+        )
+
+    control_data = scaled_df_selected_features.xs("Control", level="Drug")
+    control_data_median = pd.Series(
+        float(euclid_on_df(control_data).median().astype("float")),
+        index=control_data.index,
+    )
+
+    control_median_data = scaled_df_selected_features_median.xs("Control", level="Drug")
+    control_median_data_median = pd.Series(
+        float(euclid_on_df(control_median_data).median().astype("float")),
+        index=control_median_data.index,
+    )
+
+    reg = LinearRegression(fit_intercept=False)
+    reg.fit(control_data, control_data_median)
+    reg.score(control_data, control_data_median)
+
+    weighted_scaled_df_selected_features = scaled_df_selected_features.multiply(
+        reg.coef_, axis=1
+    )
+
+    reg = LinearRegression(fit_intercept=False)
+    reg.fit(control_median_data, control_median_data_median)
+    reg.score(control_median_data, control_median_data_median)
+
+    weighted_scaled_df_selected_features_median = (
+        scaled_df_selected_features_median.multiply(reg.coef_, axis=1)
+    )
+
+# %% Ridge regression
+
+RIDGE_REGRESSION = 0
+if RIDGE_REGRESSION:
+    reg = linear_model.BayesianRidge()
+    reg.fit(X, Y)
+
+# reg = LinearRegression()
+# reg.fit(scaled_df, labels)
+# reg.score(scaled_df, labels)
+# scaled_df_selected_features
+# %% Ridge regression
+# from sklearn import linear_model
+# ransac = linear_model.RANSACRegressor()
+# ransac.fit(X, y)
+# %%####### permutation_importance
+
+# # mlp = MLPClassifier().fit(scaled_df, labels)
+# from sklearn.inspection import permutation_importance
+
+# r = permutation_importance(mlp, scaled_df, labels)
 
 # %%####### Dimensionality reduction
 
 
 def pca_on_df(df):
     return pd.DataFrame(
-        PCA(n_components=0.95, whiten=True).fit_transform(df), index=df.index
-    )
+        PCA(n_components=2, whiten=False).fit_transform(df), index=df.index
+    ).rename(columns={0: "PC1", 1: "PC2"})
 
 
-dimensional_pca_df = scaled_df_reduced = pca_on_df(scaled_df)
-scaled_df_median_reduced = pca_on_df(scaled_df_median)
-scaled_df_median_no_nuclei_reduced = pca_on_df(scaled_df_median_no_nuclei)
-scaled_df_median_clean_reduced = pca_on_df(scaled_df_median_clean)
+df_dim_reduce_in = scaled_df
+df_dim_reduce_median_in = scaled_df_median
+
+try:
+    df_dim_reduce_in = scaled_df_selected_features
+    df_dim_reduce_median_in = scaled_df_selected_features_median
+except:
+    print("No selected features")
+try:
+    df_dim_reduce_in = weighted_scaled_df_selected_features
+    df_dim_reduce_median_in = weighted_scaled_df_selected_features_median
+except:
+    print("No weighted features")
+
+
+dimensional_pca_df = scaled_df_reduced = pca_on_df(df_dim_reduce_in)
+# dimensional_pca_df = scaled_df_reduced = pca_on_df(scaled_df_standard)
+
+scaled_df_median_reduced = pca_on_df(df_dim_reduce_median_in)
+# scaled_df_median_no_nuclei_reduced = pca_on_df(scaled_df_median_no_nuclei)
+# scaled_df_median_clean_reduced = pca_on_df(df_median_dim_reduce_clean_in)
+
+# scaled_df_reduced = scaled_df_reduced.groupby(["ImageNumber","Date","Drug","Replicate","Conc /uM","Cell"]).median()
 
 print(
     "Data dimensionality reduced from "
-    + str(scaled_df.shape[1])
+    + str(df_dim_reduce_in.shape[1])
     + " to "
-    + str(dimensional_pca_df.shape[1])
+    + str(scaled_df_reduced.shape[1])
 )
 
-dimensional_pca_df_unstack = dimensional_pca_df.unstack(level="Drug")
-# dimensional_pca_df_corr = dimensional_pca_df.transpose().corr(method='pearson')
-dimensional_pca_df_median = dimensional_pca_df_unstack.groupby(
-    level="Conc /uM"
-).median()
+plot = sns.relplot(
+    x="PC1",
+    y="PC2",
+    col="Cell",
+    hue="Drug",
+    row="Conc /uM",
+    data=dimensional_pca_df.reset_index(),
+)
+if SAVE_FIG:
+    plot.savefig(f"{metadata()}_pca_facet_grid_conc.pdf")
+
+# sns.scatterplot(
+#     x="PC1", y="PC2", hue="Drug", size="Conc /uM", data=scaled_df_reduced.reset_index()
+# )
+# sns.relplot(x=0, y=1, hue="Drug", row="Conc /uM", data=scaled_df_reduced.reset_index())
+
+# sns.relplot(x=0, y=1, hue="Cell", col="Drug", row="Conc /uM", data=scaled_df_reduced.reset_index())
+
+# sns.relplot(x=0, y=1, col="Cell", hue="Drug", row="Conc /uM", data=scaled_df_reduced.reset_index())
+
+# sns.relplot(x=0, y=1, hue="Cell", data=scaled_df_reduced.xs("Control",level="Drug",drop_level=False).reset_index())
+
+
+# sns.relplot(x="PC1", y="PC2", hue="Cell", data=scaled_df_reduced.xs("Control",level="Drug",drop_level=False).reset_index(),kind="kde")
+
+# sns.relplot(x=0, y=1, col="Cell", hue="Drug",
+# data=scaled_df_reduced.xs([0],level="Conc /uM",drop_level=False).reset_index())
+
+dimensional_pca_df = scaled_df_reduced = df_dim_reduce_in
+scaled_df_median_reduced = df_dim_reduce_median_in
+
+# sns.pairplot(vars='0', hue="Drug", data=scaled_df_reduced.reset_index())
+
+# sns.distplot(scaled_df_reduced.reset_index(), hue="Drug")
+
+# dimensional_pca_df_unstack = dimensional_pca_df.unstack(level="Drug")
+# # dimensional_pca_df_corr = dimensional_pca_df.transpose().corr(method='pearson')
+# dimensional_pca_df_median = dimensional_pca_df_unstack.groupby(
+#     level="Conc /uM"
+# ).median()
 
 
 # %% ####### Small common DFs ##########
 
-drug_df = dimensional_pca_df.xs(DRUG, level="Drug")
+drug_df = scaled_df_reduced.xs(DRUG, level="Drug")
 # sns.clustermap(drug_df_corr) # DO NOT RUN
 drug_median_per_image = (
     drug_df.unstack(level="Conc /uM").groupby(level="ImageNumber").median().stack()
 )
 drug_median_per_conc = drug_df.groupby(level="Conc /uM").median()
 
-dimensional_pca_df_median = dimensional_pca_df.groupby(
+dimensional_pca_df_median = scaled_df_reduced.groupby(
     ["ImageNumber", "Conc /uM", "Drug"]
 ).median()
 drug_median_per_image_euclid = pd.DataFrame(
@@ -290,9 +1205,11 @@ drug_median_per_conc_euclid = pd.DataFrame(
     euclidean_distances(drug_median_per_conc), index=drug_median_per_conc.index
 )
 
+# df = scaled_df_reduced
+
 # %%####### PCA Analysis ####
 
-FLAG_PCA_OLD = 1  # Buggy
+FLAG_PCA_OLD = 0  # Buggy
 SAVE_FIG = 1
 if FLAG_PCA_OLD:
     df_CONC = df.xs(CONC, level="Conc /uM", drop_level=False)
@@ -391,16 +1308,33 @@ if FLAG_PCA_OLD:
 
 
 # %%##### TSNE https://lvdmaaten.github.io/tsne/
+# %%time
+
 FLAGS_TSNSE = 0  # Slow
 if FLAGS_TSNSE:
     from sklearn.manifold import TSNE
 
-    X_embedded = TSNE(n_components=2).fit_transform(scaled_df)
+    tsne_in = scaled_df
+    # tsne_median_in = scaled_df_median
+
+    try:
+        tsne_in = scaled_df_selected_features
+        # df_dim_reduce_median_in = scaled_df_selected_features_median
+    except:
+        print("No selected features")
+    try:
+        tsne_in = weighted_scaled_df_selected_features
+        # df_dim_reduce_median_in = weighted_scaled_df_selected_features_median
+    except:
+        print("No weighted features")
+    # tsne_in = tsne_in.groupby(["ImageNumber","Date","Drug","Replicate","Conc /uM","Cell"]).median()
+
+    X_embedded = TSNE(n_components=2, n_jobs=10).fit_transform(tsne_in)
     # principalComponents = pca.fit_transform(scaled_df)
     X_embeddedDf = pd.DataFrame(
         data=X_embedded,
         columns=["tsne component 1", "tsne component 2"],
-        index=scaled_df.index,
+        index=tsne_in.index,
     )
     # tnse_df_meta = X_embeddedDf.join(merged_df_extracted[['ImageNumber','Conc /uM','Drug']])
     # sns.scatterplot(x='principal component 1',y="principal component 2",hue="ImageNumber",data=X_embeddedDf)
@@ -429,22 +1363,23 @@ if FLAGS_TSNSE:
 
 
 # %%##### Fingerprints
-DF_FINGERPRINTS = 1
+DF_FINGERPRINTS = 0
 if DF_FINGERPRINTS:
     # median_height=5
-    def df_to_fingerprints(df, median_height=5):
-        DRUGS = list(df.index.levels[3])
-        DRUGS = list(set(df.index.dropna().get_level_values("Drug")))
+    def df_to_fingerprints(df, median_height=5, index_by="Drug"):
+        # DRUGS = list(df.index.levels[3])
+        LABELS = list(set(df.index.dropna().get_level_values(index_by).sort_values()))
+        LABELS.sort()
         plt.rcParams["axes.grid"] = False
-        fig, axes = plt.subplots(nrows=len(DRUGS) * 2, figsize=(8, 7), dpi=150)
+        fig, axes = plt.subplots(nrows=len(LABELS) * 2, figsize=(8, 7), dpi=150)
         upper = np.mean(df.values.flatten()) + 3 * np.std(df.values.flatten())
         upper
         lower = np.mean(df.values.flatten()) - 3 * np.std(df.values.flatten())
         lower
         for i, ax in enumerate(axes.flat):
-            drug = DRUGS[int(np.floor(i / 2))]
+            drug = LABELS[int(np.floor(i / 2))]
             drug
-            image = df.xs(drug, level="Drug")
+            image = df.xs(drug, level=index_by)
             finger_print = image.median(axis=0)
             finger_print_image = np.matlib.repmat(finger_print.values, median_height, 1)
 
@@ -471,14 +1406,66 @@ if DF_FINGERPRINTS:
         fig.colorbar(im, ax=axes.ravel().tolist())
         # fig.colorbar(im, cax=cbar_ax)
 
-    df_to_fingerprints(scaled_df, 5)
-    if SAVE_FIG:
-        plt.savefig(metadata() + "_df_scaled_dim_colours.pdf")
-    plt.show()
-    df_to_fingerprints(dimensional_pca_df, 1)
-    if SAVE_FIG:
-        plt.savefig(metadata() + "_dimensional_pca_df_colours.pdf")
-    plt.show()
+    dfs_to_finger = {
+        "scaled_features_iso34_unsorted_conc": (
+            scaled_df.xs("ISO34", level="Cell", drop_level=False),
+            5,
+            "Conc /uM",
+        ),
+        "pca_features_iso34_unsorted_conc": (
+            dimensional_pca_df.xs("ISO34", level="Cell", drop_level=False),
+            1,
+            "Conc /uM",
+        ),
+        "scaled_features_iso34_unsorted": (
+            scaled_df.xs("ISO34", level="Cell", drop_level=False),
+            5,
+            "Drug",
+        ),
+        "scaled_features_iso49_unsorted": (
+            scaled_df.xs("ISO49", level="Cell", drop_level=False),
+            5,
+            "Drug",
+        ),
+        "scaled_features_iso49_sorted_conc": (
+            scaled_df.xs("ISO49", level="Cell", drop_level=False)
+            # .groupby(["ImageNumber","Date","Drug","Replicate","Conc /uM","Cell"]).mean()
+            .sort_index(level=["Conc /uM"]),
+            5,
+            "Drug",
+        ),
+        "scaled_features_iso34_sorted_conc": (
+            scaled_df.xs("ISO34", level="Cell", drop_level=False).sort_index(
+                level=["Conc /uM"]
+            ),
+            5,
+            "Drug",
+        ),
+        # "pca_features_iso34_sorted": dimensional_pca_df
+        #     .xs("ISO34",level="Cell",drop_level=False)
+        #     .sort_index(level=["Conc /uM"])
+        #     ,
+        "pca_features_iso34_unsorted": (
+            dimensional_pca_df.xs("ISO34", level="Cell", drop_level=False),
+            1,
+            "Drug",
+        ),
+        "pca_features_iso49_unsorted": (
+            dimensional_pca_df.xs("ISO49", level="Cell", drop_level=False),
+            1,
+            "Drug",
+        ),
+    }
+
+    for df_to_finger_name in dfs_to_finger:
+        df_to_fingerprints(*dfs_to_finger[df_to_finger_name])
+        if SAVE_FIG:
+            filename = metadata() + "_" + df_to_finger_name + ".pdf"
+            print("Saving " + filename)
+            plt.savefig(filename)
+        plt.show()
+
+# df_to = dfs_to_finger[next(iter(dfs_to_finger))]
 
 # %%##### Correlations between drugs heirachical clusters, meaningless.
 
@@ -510,7 +1497,7 @@ if FLAG_CORR:
     if SAVE_FIG:
         plt.savefig(metadata() + "_" + DRUG + "_median_per_image_corr.pdf")
 
-# Groupby does not preserve multindex
+# %% Groupby does not preserve multindex
 
 FLAG_MEDIAN_PER_EUCLID = 0
 if FLAG_MEDIAN_PER_EUCLID:
@@ -526,16 +1513,17 @@ if FLAG_MEDIAN_PER_EUCLID:
     if SAVE_FIG:
         plt.savefig(metadata() + "_" + DRUG + "_median_per_conc_euclid.pdf")
         plt.show()
-
+# %% Corr
 FLAG_CORR_CONC_TO_FEATURE = 1
 if FLAG_CORR_CONC_TO_FEATURE:
     df_CONC = df.copy()
-    CONC_IDX = df.index.to_frame()["Conc /uM"]
-    df_CONC["Conc /uM"] = CONC_IDX
+    corr_feature = "Conc /uM"
+    CONC_IDX = df.index.to_frame()[corr_feature]
+    df_CONC[corr_feature] = CONC_IDX
     df_corr = (
         df_CONC.groupby("Drug")
-        .apply(lambda x: x.corrwith(x["Conc /uM"]))
-        .drop(columns="Conc /uM")
+        .apply(lambda x: x.corrwith(x[corr_feature]))
+        .drop(columns=corr_feature)
     )
     wideform_df_corr = df_corr.T.stack().reset_index()
     wideform_df_corr_named = wideform_df_corr.rename(
@@ -650,7 +1638,11 @@ if FLAG_CORR_CONC_TO_FEATURE:
 #                col='Drug', sharey=False,
 #                data=mean_drug_to_drug.reset_index())
 # '''
+
+
 # %% IC50
+
+from sklearn.metrics.pairwise import euclidean_distances
 
 FLAG_IC50 = 1
 
@@ -661,26 +1653,16 @@ if FLAG_IC50:
             columns={0: "Euclidean distance"}
         )
 
-    #
-    # EC50s = [('facet_drugs_dose.pdf',df_reduced_euclid_df),
-    #         ('facet_drugs_reduced_dose_median',df_reduced_euclid_median_df),
-    #         ('facet_drugs_dose',df_euclid_df)]
-    # EC50s = [('facet_drugs_reduced_dose_median',df_reduced_euclid_median_df)]
+    data_in_ec50 = scaled_df_reduced
+    # data_in_ec50 = dimensional_pca_df.iloc[:, 0:2]
+    # data_in_ec50 = weighted_scaled_df_selected_features
 
-    EC50s = [("df_median_no_nuclei", df_median_no_nuclei)]
+    data_in_ec50 = data_in_ec50.groupby(
+        ["ImageNumber", "Drug", "Date", "Cell", "Replicate", "Conc /uM"]
+    ).median()
 
-    EC50s = [("scaled_clean_df", scaled_clean_df)]
-    EC50s = [("scaled_df_median_clean", scaled_df_median_clean)]
-    EC50s = [("scaled_df_median", scaled_df_median)]
-    EC50s = [("scaled_df", scaled_df)]
-
-    EC50s = [("scaled_df_reduced", scaled_df_reduced)]  # Fail
-    EC50s = [
-        ("scaled_df_median_no_nuclei_reduced", scaled_df_median_no_nuclei_reduced)
-    ]  # 2
-    EC50s = [("scaled_df_median_clean_reduced", scaled_df_median_clean_reduced)]  # bad
-
-    EC50s = [("scaled_df_median_reduced", scaled_df_median_reduced)]  # 1
+    # EC50s = [("scaled_df_median_reduced", scaled_df_median_reduced)]
+    EC50s = [("data_in_ec50", data_in_ec50)]
 
     EC50 = EC50s
     # SAVE_FIG = 1
@@ -689,28 +1671,51 @@ if FLAG_IC50:
         print(filename)
         data_euclid_df = euclid_on_df(data)
 
+        # ed = pd.DataFrame(euclidean_distances(data_in_ec50
+        #         .xs(["Control"],
+        #             level=["Drug"],
+        #             drop_level=False)
+        #         ,
+        #         data_in_ec50
+        #         # .xs("ISO34",
+        #         #     level="Cell",
+        #         #     drop_level=False)
+        #         ).T,
+        #         index=data_in_ec50\
+        #                 # .xs(
+        #                 #             "ISO34",
+        #                 #             level="Cell",
+        #                 #             drop_level=False)
+        #                 .index
+        #                 )
+        # data_euclid_df = ed.median(axis=1)\
+        #                     .rename("Euclidean distance")\
+        #                     .to_frame()
+
+        """Keep data with 30 entries per point"""
         data_euclid_df_keep = (
             data_euclid_df.groupby(["Drug", "Cell"])
             .count()
             .query("`Euclidean distance` > 30")
             .astype(float)
         )
+
         # data_euclid_df_keep = data_euclid_df
         # data_euclid_df_keep
         data_euclid_df_subset = data_euclid_df
-        data_euclid_df_subset = pd.merge(
-            data_euclid_df_keep,
-            data_euclid_df,
-            how="left",
-            left_index=True,
-            right_index=True,
-            suffixes=("_drop", ""),
-        ).drop("Euclidean distance_drop", axis="columns")
+        # data_euclid_df_subset = pd.merge(
+        #     data_euclid_df_keep,
+        #     data_euclid_df,
+        #     how="left",
+        #     left_index=True,
+        #     right_index=True,
+        #     suffixes=("_drop", ""),
+        # ).drop("Euclidean distance_drop", axis="columns")
 
         LINREGRESS_FLAG = 1
         if LINREGRESS_FLAG:
 
-            data_euclid_df_subset
+            data_euclid_df_subset.to_csv(root_dir + "euclid.csv")
 
             linear_regression = pd.DataFrame(
                 data_euclid_df_subset.reset_index()
@@ -722,6 +1727,7 @@ if FLAG_IC50:
                     )
                 )
             )
+
             linear_regression
             linear_regression["R2"] = linear_regression["R"] ** 2
             linear_regression["EC50 /uM"] = abs(
@@ -743,23 +1749,77 @@ if FLAG_IC50:
                 plt.savefig(metadata() + "_EC50.pdf")
             plt.show()
 
-            # sns.barplot(x='Drug',y='EC50',data=linear_regression.xs('ISO34',level='Cell').reset_index(),yerr=linear_regression.xs('ISO34',level='Cell')['EC50_err']*1)
+            # sns.barplot(
+            #     x="Drug",
+            #     y="EC50",
+            #     data=linear_regression.xs("ISO34", level="Cell").reset_index(),
+            #     yerr=linear_regression.xs("ISO34", level="Cell")["EC50_err"] * 1,
+            # )
             # plt.show()
 
         # SAVE_FIG = 1
-        grid = sns.lmplot(
+        cat = sns.catplot(
             x="Conc /uM",
             y="Euclidean distance",
             row="Cell",
             col="Drug",
             data=data_euclid_df_subset.reset_index(),
             sharex=False,
-            sharey=True,
+            sharey=False,
+            # x_estimator=np.median,
+            # x_ci="ci",
+            # x_bins=9,
+            # markers=None,
+            hue="Drug",
+            kind="violin",
+        )
+        if SAVE_FIG:
+            plt.savefig(metadata() + "_" + "violin" "_" + filename + ".pdf")
+
+        grid_linear = sns.lmplot(
+            x="Conc /uM",
+            y="Euclidean distance",
+            row="Cell",
+            col="Drug",
+            data=data_euclid_df_subset.reset_index(),
+            sharex=False,
+            sharey=False,
             x_estimator=np.median,
             x_ci="ci",
             x_bins=9,
             markers=None,
             hue="Drug",
+        )
+
+        grid_linear = sns.lmplot(
+            x="Conc /uM",
+            y="Euclidean distance",
+            row="Cell",
+            col="Drug",
+            data=data_euclid_df_subset.reset_index(),
+            sharex=False,
+            sharey=False,
+            hue="Drug",
+        )
+
+        if SAVE_FIG:
+            plt.savefig(metadata() + "_" + "facet_linear" "_" + filename + ".pdf")
+
+        grid = (
+            sns.lmplot(
+                x="Conc /uM",
+                y="Euclidean distance",
+                row="Cell",
+                col="Drug",
+                data=data_euclid_df_subset.reset_index(),
+                sharex=False,
+                sharey=False,
+                x_estimator=np.mean,
+                x_ci="ci",
+                # x_bins=9,
+                markers=None,
+                hue="Drug",
+            )
         ).set(xscale="log")
         if SAVE_FIG:
             plt.savefig(metadata() + "_" + "facet" "_" + filename + ".pdf")
@@ -772,8 +1832,8 @@ if FLAG_IC50:
                 col="Cell",
                 data=data_euclid_df_subset.reset_index(),
                 sharex=True,
-                sharey=True,
-                x_estimator=np.median,
+                sharey=False,
+                x_estimator=np.mean,
                 markers=None,
                 hue="Drug",
             )
@@ -783,8 +1843,39 @@ if FLAG_IC50:
             plt.savefig(metadata() + "_" + "grouped" "_" + filename + ".pdf")
         plt.show()
 
-#
-# # %% IC50
+        # %% Control
+
+        grid = sns.lmplot(
+            x="Date",
+            y="Euclidean distance",
+            scatter=False,
+            col="Cell",
+            data=data_euclid_df_subset.reset_index(),
+            sharex=True,
+            sharey=True,
+            x_estimator=np.mean,
+            markers=None,
+            hue="Drug",
+        )
+
+# %% Date control
+euclid_date_df = data_euclid_df_subset
+grid = sns.catplot(
+    x="Date",
+    y="Euclidean distance",
+    hue="Drug",
+    # scatter=False,
+    col="Drug",
+    data=euclid_date_df.reset_index(),
+    # sharex=True,
+    # sharey=True,
+    # x_estimator=np.median,
+    # markers=None,
+    kind="violin",
+)
+
+
+# %% IC50
 # FLAG_IC50_MANUAL = 0
 # if(FLAG_IC50_MANUAL):
 #     # drug_median_per_image_euclid
@@ -1017,3 +2108,13 @@ if FLAG_IC50:
 # # #install.packages('devtools',repos='http://cran.us.r-project.org')
 # # devtools::install_github('Swarchal/TISS')
 # '''
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
