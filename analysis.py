@@ -4,7 +4,6 @@
 # New dose response using powerTransformer
 # AUR ROC Curves for confusion matrices
 # COnfusion matrix for classifying cells on test data
-
 # %% Imports
 from scipy import stats
 import seaborn as sns
@@ -15,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import scale
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import euclidean_distances
+import re
 
 # from sklearn.metrics import homogeneity_score
 from sklearn.cluster import KMeans
@@ -165,7 +165,12 @@ merged_df = image_nuclei_df
 
 
 # %%### Beging metadata extraction
-regex_pattern = r"[\/\\](?P<Date>[\d]+)_.+_(?P<Cell>ISO[\d]+)_(?P<Drug>[A-Za-z0-9]+)_(?P<Concentration>[\d\w_-]+uM)(?:.+Position_(?P<Position>[\d]))?"
+# regex_pattern = r"[\/\\](?P<Date>[\d]+)_.+_(?P<Cell>ISO[\d]+)_(?P<Drug>[A-Za-z0-9]+)_(?P<Concentration>[\d\w_-]+uM)(?:.+Position_(?P<Position>[\d]))?"
+regex_pattern = re.compile(
+    "[\/\\](?P<Date>[\d]+)_.+_(?P<Cell>ISO[\d]+)"
+    "_(?P<Drug>[A-Za-z0-9]+)_(?P<Concentration>[\d\w_-]+uM)"
+    "(?:.+Position_(?P<Position>[\d]))?"
+)
 # filenames_image = merged_df['PathName_Channels'];
 filenames_nuclei = nuclei_df["Metadata_FileLocation"]
 # filenames_organoid = organoid_df['Metadata_FileLocation']
@@ -359,7 +364,9 @@ scaled_df = pd.DataFrame(
 )
 
 scaled_df_standard = pd.DataFrame(
-    preprocessor_standard(df_scaled_in), index=df_scaled_in.index, columns=df_scaled_in.columns
+    preprocessor_standard(df_scaled_in),
+    index=df_scaled_in.index,
+    columns=df_scaled_in.columns,
 )
 
 scaled_df_median = pd.DataFrame(
@@ -493,8 +500,7 @@ if FEATURE_SELECT:
     #         ("modelselect", SelectFromModel(model)),
     #     ]
     # )
-    pipe = Pipeline([('PCA', PCA()),
-                    ('modelselect', SelectFromModel(model))]) # Best?
+    pipe = Pipeline([("PCA", PCA()), ("modelselect", SelectFromModel(model))])  # Best?
 
     # pipe = Pipeline([('TSNE', TSNE()),
     #                 ('modelselect', SelectFromModel(model)),
@@ -546,12 +552,18 @@ if RANSAC:
 # %% IC50 from classification
 from sklearn.model_selection import cross_val_score, KFold, train_test_split
 from sklearn.metrics import plot_confusion_matrix, classification_report
-from sklearn.ensemble import RandomForestClassifier,VotingClassifier,BaggingClassifier,ExtraTreesClassifier
+from sklearn.ensemble import (
+    RandomForestClassifier,
+    VotingClassifier,
+    BaggingClassifier,
+    ExtraTreesClassifier,
+)
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.metrics import balanced_accuracy_score
 
 import collections
-sns.set(rc={'figure.figsize':(11.7/2,8.27/2)})
+
+sns.set(rc={"figure.figsize": (11.7 / 2, 8.27 / 2)})
 from sklearn.neural_network import MLPClassifier
 
 CELLS = {"ISO34", "ISO49"}
@@ -575,17 +587,19 @@ chart = nested_dict()
 report_dict = nested_dict()
 report_tall_full = pd.DataFrame()
 
-SAVE_FIG=0
+SAVE_FIG = 0
 
 data_in_full = scaled_df.sample(frac=1).xs(CELL, level="Cell").sample(frac=1)
 data_in_median = scaled_df_median.xs(CELL, level="Cell").sample(frac=1)
 data_in_median_sorted = scaled_df_median.xs(CELL, level="Cell").sort_index(level="Date")
 data_in_full_sorted = scaled_df.xs(CELL, level="Cell").sort_index(level="Date")
 
-DATA = {"Median per Organoid unsorted":data_in_median,
-        "Per Cell unsorted":data_in_full,
-        "Median per Organoid sorted by date":data_in_median_sorted,
-        "Per Cell sorted by date":data_in_full_sorted}
+DATA = {
+    "Median per Organoid unsorted": data_in_median,
+    "Per Cell unsorted": data_in_full,
+    "Median per Organoid sorted by date": data_in_median_sorted,
+    "Per Cell sorted by date": data_in_full_sorted,
+}
 # DATA = {"median":data_in_median,
 #         "data_in_median_sorted":data_in_median_sorted
 #         }
@@ -627,7 +641,9 @@ if CLASS_FRACTIONS:
                 labels, uniques = pd.factorize(data_in.reset_index()[VARIABLE])
                 labels = pd.Series(labels, index=data_in.index)
                 labels_indexed = (
-                    pd.Series(data_in.index.get_level_values(VARIABLE), index=data_in.index)
+                    pd.Series(
+                        data_in.index.get_level_values(VARIABLE), index=data_in.index
+                    )
                     .astype(str)
                     .astype("category")
                 )
@@ -657,10 +673,9 @@ if CLASS_FRACTIONS:
                     % (scores_train.mean(), scores_train.std() * 2)
                 )
 
-
-
                 print(
-                    "Blind: %0.2f (+/- %0.2f)" % (scores_test.mean(), scores_test.std() * 2)
+                    "Blind: %0.2f (+/- %0.2f)"
+                    % (scores_test.mean(), scores_test.std() * 2)
                 )
                 # print(f"Blind : {model.score(X_test, y_test)}")
                 importance = pd.Series(
@@ -727,7 +742,7 @@ if CLASS_FRACTIONS:
                 y_score_bin = label_binarize(model.predict(X_test), classes=uniques)
                 y_test_bin = label_binarize(y_test, classes=uniques)
 
-                balanced_accuracy_score(model.predict(X_test),y_test)
+                balanced_accuracy_score(model.predict(X_test), y_test)
                 fpr = dict()
                 tpr = dict()
                 roc_auc = dict()
@@ -768,7 +783,7 @@ if CLASS_FRACTIONS:
                     .set_xticklabels(rotation=45)
                 )
                 plt.tight_layout()
-                plt.suptitle(f"{CELL}",y=1.12)
+                plt.suptitle(f"{CELL}", y=1.12)
                 if SAVE_FIG:
                     # chart[CELL][VARIABLE]
                     chart[CELL][VARIABLE][DATA_KEY].tight_layout()
@@ -781,38 +796,42 @@ if CLASS_FRACTIONS:
                 report_tall["Cell type"] = CELL
                 report_tall["Population type"] = DATA_KEY
                 report_tall["Variable"] = VARIABLE
-                report_tall.rename(columns={CELL:"variable_name"})
+                report_tall.rename(columns={CELL: "variable_name"})
                 report_tall_list.append(report_tall)
 
-SAVE_FIG=1
+SAVE_FIG = 1
 report_df = pd.concat(report_tall_list)
 
-data= report_df.set_index("Variable").xs("Drug")
-plot = sns.catplot(x="Drug",
-            y="Score",
-            col="Metric",
-            row="Cell type",
-            hue="Population type",
-            data=data,
-            sharey=False,
-            kind="bar",
-            ).set_xticklabels(rotation=45)
-if(SAVE_FIG):
-    plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.pdf")
+data = report_df.set_index("Variable").xs("Drug")
+plot = sns.catplot(
+    x="Drug",
+    y="Score",
+    col="Metric",
+    row="Cell type",
+    hue="Population type",
+    data=data,
+    sharey=False,
+    kind="bar",
+).set_xticklabels(rotation=45)
+if SAVE_FIG:
+    plot.savefig(
+        f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.pdf"
+    )
     # plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.png")
 
 data = report_df.set_index("Variable").xs("Date")
-plot = sns.catplot(x="Date",
-            y="Score",
-            col="Metric",
-            row="Cell type",
-            hue="Population type",
-            data=data,
-            sharey=False,
-            kind="bar",
-            ).set_xticklabels(rotation=45)
-                # report_tall_full = pd.concat([report_tall,report_tall_full])
-if(SAVE_FIG):
+plot = sns.catplot(
+    x="Date",
+    y="Score",
+    col="Metric",
+    row="Cell type",
+    hue="Population type",
+    data=data,
+    sharey=False,
+    kind="bar",
+).set_xticklabels(rotation=45)
+# report_tall_full = pd.concat([report_tall,report_tall_full])
+if SAVE_FIG:
     plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_date_population_type.pdf")
 
 # # %%
@@ -853,7 +872,8 @@ if(SAVE_FIG):
 # %% Machine learning similarity
 ML_SIMILARITY = 1
 from sklearn.ensemble import RandomForestClassifier
-SAVE_FIG=0
+
+SAVE_FIG = 0
 CELL = "ISO49"
 if ML_SIMILARITY:
     data_in = scaled_df.sample(frac=1)
@@ -1965,7 +1985,9 @@ grid = sns.catplot(
 # '''
 #
 # '''
-# Maximum correlation. For a set of n doses for each compound, the NxN correlation matrix is computed between all pairs of concentrations, and the maximum value is used as the dose-independent similarity score72.
+# Maximum correlation. For a set of n doses for each compound,
+# the NxN correlation matrix is computed between all pairs of concentrations,
+# and the maximum value is used as the dose-independent similarity score72.
 # '''
 # G007_df = df.xs(DRUG, level='Drug')
 # FLAG_MAXCORR = 0
@@ -2001,7 +2023,14 @@ grid = sns.catplot(
 #     Maximum_correlation_g007_2.max()
 #     sns.clustermap(Maximum_correlation_g007)
 #
-# '''Titration-invariant similarity score. First, the titration series of a compound is built by computing the similarity score between each dose and negative controls. Then, the set of scores is sorted by increasing dose and is split into subseries by using a window of certain size (for instance, windows of three doses). Two compounds are compared by computing the correlation between their subwindows, and only the maximum value is retained83.'''
+# '''Titration-invariant similarity score.
+# First, the titration series of a compound is built by computing the
+# similarity score between each dose and negative controls.
+# Then, the set of scores is sorted by increasing dose and
+# is split into subseries by using a window of certain size
+# (for instance, windows of three doses).
+# Two compounds are compared by computing the correlation
+# between their subwindows, and only the maximum value is retained83.'''
 
 
 # https://science.sciencemag.org/content/306/5699/1194
