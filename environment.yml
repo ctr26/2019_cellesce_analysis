@@ -1,0 +1,21 @@
+# conda env create -f environment.yml -n idr-omero
+name: cellesce
+channels:
+  - defaults
+  # - pytorch
+  # - anaconda
+  # - idr
+  # - ome
+  - conda-forge
+  - bioconda
+dependencies:
+  - pip 
+  - python
+  - scipy
+  - scikit-learn
+  - numpy
+  - ipykernel
+  - seaborn
+  - pandas
+  - matplotlib
+  # - pip:
