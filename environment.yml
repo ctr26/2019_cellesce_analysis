@@ -12,6 +12,7 @@ dependencies:
   - pip 
   - python
   - scipy
+  - ipykernel
   - scikit-learn
   - numpy
   - ipykernel
