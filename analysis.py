@@ -165,12 +165,8 @@ merged_df = image_nuclei_df
 
 
 # %%### Beging metadata extraction
-# regex_pattern = r"[\/\\](?P<Date>[\d]+)_.+_(?P<Cell>ISO[\d]+)_(?P<Drug>[A-Za-z0-9]+)_(?P<Concentration>[\d\w_-]+uM)(?:.+Position_(?P<Position>[\d]))?"
-regex_pattern = re.compile(
-    "[\/\\](?P<Date>[\d]+)_.+_(?P<Cell>ISO[\d]+)"
-    "_(?P<Drug>[A-Za-z0-9]+)_(?P<Concentration>[\d\w_-]+uM)"
-    "(?:.+Position_(?P<Position>[\d]))?"
-)
+regex_pattern = r"[\/\\](?P<Date>[\d]+)_.+_(?P<Cell>ISO[\d]+)_(?P<Drug>[A-Za-z0-9]+)_(?P<Concentration>[\d\w_-]+uM)(?:.+Position_(?P<Position>[\d]))?"
+
 # filenames_image = merged_df['PathName_Channels'];
 filenames_nuclei = nuclei_df["Metadata_FileLocation"]
 # filenames_organoid = organoid_df['Metadata_FileLocation']
