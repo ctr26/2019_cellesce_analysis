@@ -1066,13 +1066,32 @@ if ML_SIMILARITY_PAIR:
             .mean()
         )
 
-        grouped_sim_square = grouped_sim.reset_index().pivot(
+        def helper_function(x):
+            x = x.drop(labels="Similarity")
+
+            index = x.index
+
+            x = x.sort_values(ignore_index=True)
+            y = pd.Series(x.values, index=index)
+            return y
+
+        dupe_index = grouped_sim.reset_index().apply(helper_function, axis=1)
+        aligned_grouped_sim = pd.concat(
+            [dupe_index, grouped_sim.reset_index(drop=True)], axis=1
+        )
+        grouped_sim_mined = (
+            aligned_grouped_sim.groupby(["Predicted Drug", "Drug"])
+            .transform(min)
+            .set_index(grouped_sim.index)
+        )
+
+        grouped_sim_square = grouped_sim_mined.reset_index().pivot(
             index="Drug", columns="Predicted Drug", values="Similarity"
         )
 
         def draw_heatmap(*args, **kwargs):
             data = kwargs.pop("data")
-            # data = data.mask(np.logical_not(np.triu(np.ones(data.shape)).astype(np.bool)))
+            data = data.mask(np.logical_not(np.tril(np.ones(data.shape)).astype(np.bool)))
             g = sns.heatmap(data, **kwargs)
             plt.yticks(rotation=0)
 
@@ -2010,9 +2029,7 @@ grid = sns.catplot(
 # '''
 #
 # '''
-# Maximum correlation. For a set of n doses for each compound,
-# the NxN correlation matrix is computed between all pairs of concentrations,
-# and the maximum value is used as the dose-independent similarity score72.
+# Maximum correlation. For a set of n doses for each compound, the NxN correlation matrix is computed between all pairs of concentrations, and the maximum value is used as the dose-independent similarity score72.
 # '''
 # G007_df = df.xs(DRUG, level='Drug')
 # FLAG_MAXCORR = 0
@@ -2048,14 +2065,7 @@ grid = sns.catplot(
 #     Maximum_correlation_g007_2.max()
 #     sns.clustermap(Maximum_correlation_g007)
 #
-# '''Titration-invariant similarity score.
-# First, the titration series of a compound is built by computing the
-# similarity score between each dose and negative controls.
-# Then, the set of scores is sorted by increasing dose and
-# is split into subseries by using a window of certain size
-# (for instance, windows of three doses).
-# Two compounds are compared by computing the correlation
-# between their subwindows, and only the maximum value is retained83.'''
+# '''Titration-invariant similarity score. First, the titration series of a compound is built by computing the similarity score between each dose and negative controls. Then, the set of scores is sorted by increasing dose and is split into subseries by using a window of certain size (for instance, windows of three doses). Two compounds are compared by computing the correlation between their subwindows, and only the maximum value is retained83.'''
 
 
 # https://science.sciencemag.org/content/306/5699/1194
