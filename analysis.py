@@ -1,3 +1,5 @@
+
+
 # https://www.nature.com/articles/nmeth.4397
 # Graphs to generate
 # Pairwise euclidean
@@ -14,7 +16,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import scale
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import euclidean_distances
-import re
 
 # from sklearn.metrics import homogeneity_score
 from sklearn.cluster import KMeans
@@ -29,6 +30,7 @@ from sklearn.utils import check_matplotlib_support
 # from scipy.stats import linregress
 
 sns.set()
+np.random.seed(3968915712)
 
 # %% Setup
 SAVE_FIG = 1
@@ -166,7 +168,6 @@ merged_df = image_nuclei_df
 
 # %%### Beging metadata extraction
 regex_pattern = r"[\/\\](?P<Date>[\d]+)_.+_(?P<Cell>ISO[\d]+)_(?P<Drug>[A-Za-z0-9]+)_(?P<Concentration>[\d\w_-]+uM)(?:.+Position_(?P<Position>[\d]))?"
-
 # filenames_image = merged_df['PathName_Channels'];
 filenames_nuclei = nuclei_df["Metadata_FileLocation"]
 # filenames_organoid = organoid_df['Metadata_FileLocation']
@@ -795,7 +796,7 @@ if CLASS_FRACTIONS:
                 report_tall.rename(columns={CELL: "variable_name"})
                 report_tall_list.append(report_tall)
 
-SAVE_FIG = 1
+# SAVE_FIG=1
 report_df = pd.concat(report_tall_list)
 
 data = report_df.set_index("Variable").xs("Drug")
@@ -829,6 +830,34 @@ plot = sns.catplot(
 # report_tall_full = pd.concat([report_tall,report_tall_full])
 if SAVE_FIG:
     plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_date_population_type.pdf")
+#  %%
+
+
+# data= report_df.set_index(["Variable","Population type"])
+pop_types = ["Median per Organoid unsorted", "Median per Organoid sorted by date"]
+
+data = report_df.set_index("Variable")
+pop_types_bool = data["Population type"].isin(pop_types)
+data_medians = data[pop_types_bool]
+data_cells = data[~pop_types_bool]
+
+plot = sns.catplot(
+    x="Drug",
+    y="Score",
+    col="Metric",
+    row="Cell type",
+    hue="Population type",
+    data=data_medians,
+    sharey=False,
+    kind="bar",
+).set_xticklabels(rotation=45)
+
+if SAVE_FIG:
+    plot.savefig(
+        f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type_median.pdf"
+    )
+    # plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.png")
+
 
 # # %%
 # fractions = y_pred.groupby(["Cell", "Conc /uM", "Drug"]).apply(
