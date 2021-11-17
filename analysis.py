@@ -994,7 +994,7 @@ ML_SIMILARITY_PAIR = 1
 from sklearn.ensemble import RandomForestClassifier
 
 CELL = "ISO49"
-CELLS = {"ISO34", "ISO49"}
+# CELLS = {"ISO34", "ISO49"}
 if ML_SIMILARITY_PAIR:
     for CELL in CELLS:
         data_in = scaled_df.sample(frac=1)
@@ -1024,11 +1024,24 @@ if ML_SIMILARITY_PAIR:
 
         for drug_blind in drugs:
             for drug in drugs:
-                drugs_to_drop = drugs.drop(["Control", drug_blind])
+
                 X_train = data_in.drop(drugs_to_drop, level="Drug")
                 y_train = labels.drop(drugs_to_drop, level="Drug")
+
+                drugs_to_drop = drugs.drop(["Control", drug_blind])
+                X_train_slim = data_in.drop(drugs_to_drop, level="Drug")
+                min_sample = X_train_slim.groupby("Drug").size().min()
+
+                X_train_fair = X_train_slim.groupby("Drug").head(min_sample)
+                y_train_fair = pd.Series(
+                    X_train_fair.index.get_level_values("Drug"),
+                    index=X_train_fair.index,
+                )
+                X_train = X_train_fair
+                y_train = y_train_fair
                 X_test = data_in.xs(drug, level="Drug", drop_level=False)
                 y_test = labels.xs(drug, level="Drug", drop_level=False)
+
                 model = RandomForestClassifier()
                 model.fit(X_train, y_train)
                 model.score(X_train, y_train)
@@ -1230,7 +1243,8 @@ if SAVE_FIG:
 # sns.relplot(x=0, y=1, hue="Cell", data=scaled_df_reduced.xs("Control",level="Drug",drop_level=False).reset_index())
 
 
-# sns.relplot(x="PC1", y="PC2", hue="Cell", data=scaled_df_reduced.xs("Control",level="Drug",drop_level=False).reset_index(),kind="kde")
+# sns.relplot(x="PC1", y="PC2", hue="Cell",
+# data=scaled_df_reduced.xs("Control",level="Drug",drop_level=False).reset_index(),kind="kde")
 
 # sns.relplot(x=0, y=1, col="Cell", hue="Drug",
 # data=scaled_df_reduced.xs([0],level="Conc /uM",drop_level=False).reset_index())
