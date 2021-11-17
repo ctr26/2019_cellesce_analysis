@@ -1,5 +1,3 @@
-
-
 # https://www.nature.com/articles/nmeth.4397
 # Graphs to generate
 # Pairwise euclidean
@@ -1091,7 +1089,9 @@ if ML_SIMILARITY_PAIR:
 
         def draw_heatmap(*args, **kwargs):
             data = kwargs.pop("data")
-            data = data.mask(np.logical_not(np.tril(np.ones(data.shape)).astype(np.bool)))
+            data = data.mask(
+                np.logical_not(np.tril(np.ones(data.shape)).astype(np.bool))
+            )
             g = sns.heatmap(data, **kwargs)
             plt.yticks(rotation=0)
 
