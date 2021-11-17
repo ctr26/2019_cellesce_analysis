@@ -842,7 +842,8 @@ if CLASS_FRACTIONS:
                 report_tall["Variable"] = VARIABLE
                 report_tall.rename(columns={CELL: "variable_name"})
                 report_tall_list.append(report_tall)
-
+#  %% 
+if CLASS_FRACTIONS:
 # SAVE_FIG=1
 report_df = pd.concat(report_tall_list)
 
@@ -877,8 +878,6 @@ plot = sns.catplot(
 # report_tall_full = pd.concat([report_tall,report_tall_full])
 if SAVE_FIG:
     plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_date_population_type.pdf")
-#  %%
-
 
 # data= report_df.set_index(["Variable","Population type"])
 pop_types = ["Median per Organoid unsorted", "Median per Organoid sorted by date"]
@@ -899,11 +898,31 @@ plot = sns.catplot(
     kind="bar",
 ).set_xticklabels(rotation=45)
 
+
 if SAVE_FIG:
     plot.savefig(
         f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type_median.pdf"
     )
     # plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.png")
+
+
+    plot = sns.catplot(
+        x="Drug",
+        y="Score",
+        col="Metric",
+        row="Population type",
+        hue="Cell type",
+        data=data_medians,
+        sharey='col',
+        kind="bar",
+    ).set_xticklabels(rotation=45)
+    plt.tight_layout()
+
+    if SAVE_FIG:
+        plot.savefig(
+            f"{metadata()}_facet_grid_drug_score_metric_cell_type_hue_population_type_median.pdf"
+        )
+        # plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.png")
 
 
 # # %%
