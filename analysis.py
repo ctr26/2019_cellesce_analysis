@@ -59,7 +59,7 @@ DROP_TEXT_FROM_DF = 1
 # data_folder = '220519 - G007'
 data_folder = "230719"
 data_folder = "241019 - ISO49+34"
-data_folder = "210720 - ISO49+34 - best planes"
+data_folder = "210720 - ISO49+34 - projection_XY"
 
 root_dir = "./analysed/" + data_folder + "/"
 
