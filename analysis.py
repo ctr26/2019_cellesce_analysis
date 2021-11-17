@@ -307,7 +307,7 @@ df_median_clean_isolated = df_median_clean.loc[
 
 # %% ####### Df summary ##########
 
-df_summary = (
+df_summary_median = (
     df_median.groupby(
         [
             "Drug",
@@ -317,6 +317,18 @@ df_summary = (
     )
     .count()
     .rename(columns={df_median.columns[0]: "Organoids"})
+)
+
+df_summary = (
+    df.groupby(
+        [
+            "Drug",
+            "Cell",
+            "Conc /uM",
+        ]
+    )
+    .count()
+    .rename(columns={df.columns[0]: "Nuclei"})
 )
 # df_median.groupby('Cell').count()
 
@@ -328,11 +340,28 @@ sns.catplot(
     sharex=True,
     kind="bar",
     orient="h",
-    data=df_summary["Organoids"].reset_index(),
+    data=df_summary_median["Organoids"].reset_index(),
 )
 if SAVE_FIG:
     plt.savefig(metadata() + "_summary.pdf")
 plt.show()
+
+sns.catplot(
+    y="Conc /uM",
+    hue="Drug",
+    x="Nuclei",
+    col="Cell",
+    sharex=True,
+    kind="bar",
+    orient="h",
+    data=df_summary["Nuclei"].reset_index(),
+)
+
+if SAVE_FIG:
+    plt.savefig(metadata() + "_summary_all.pdf")
+plt.show()
+
+print(f"Nuclei: {df.count().iloc[0]}, Organoids: {df_median.count().iloc[0]}")
 
 # %%####### StandardScaler
 # index = df.index
