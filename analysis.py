@@ -445,12 +445,32 @@ if FEATURE_SELECT:
 
     feature_df_in = scaled_df.sample(frac=1)
     feature_df_median_in = scaled_df_median.sample(frac=1)
+    feature_df_in = feature_df_median_in
 
-    labels = feature_df_in.reset_index()[["Date"]]
+    labels = feature_df_in.reset_index()[["Drug"]]
     # labels = feature_df_in.reset_index()[["Drug", "Cell", "Conc /uM"]]
     labels = labels.apply(lambda x: pd.factorize(x)[0])
     X_train, X_test, y_train, y_test = train_test_split(feature_df_in, labels)
     model.fit(X_train, y_train)
+    
+    importance = pd.Series(
+                    model.feature_importances_, index=X_train.columns
+                ).sort_values(ascending=False)
+
+    importance_cumsum = (
+        importance.cumsum()
+        .reset_index()
+        .rename(columns={"index": "Feature", 0: "Cumlative importance"})
+    )
+    fig_dims = (8, 6)
+    fig, ax = plt.subplots(figsize=fig_dims)
+    sns.barplot(
+        y="Feature", x="Cumlative importance", data=importance_cumsum[:20]
+    )
+    plt.tight_layout()
+    if (SAVE_FIG):
+        plt.savefig(f"{metadata()}_cumulative_importance_median_drug_all.pdf")
+    
     full_df_pred = pd.DataFrame(model.predict(feature_df_in))
     truth = pd.Series((np.array(full_df_pred) == np.array(labels)).flatten())
     # not(pd.Series(model.predict(feature_df_in))==labels)
