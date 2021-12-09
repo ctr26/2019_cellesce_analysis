@@ -194,6 +194,11 @@ if ZEROISCONTROL:
     )
 
 raw_df_indexed = raw_df.join(extracted_data[filename_headers]).set_index(index_headers)
+
+#  %%
+
+
+# %%
 # raw_df_indexed
 with open("bad_cols.json", "r") as f:
     # print(*raw_df_indexed.columns,sep='\n')
@@ -204,9 +209,6 @@ raw_df_indexed_bad_cols_med = raw_df_indexed_bad_cols.groupby(
     level=["ImageNumber"] + filename_headers
 ).median()
 
-raw_df_indexed_bad_cols_med = raw_df_indexed_bad_cols.groupby(
-    level=["Date", "Drug", "Cell", "Replicate", "Conc /uM", "ImageNumber"]
-).median()
 
 # raw_df_indexed_bad_cols_med = raw_df_indexed_bad_cols.groupby(
 #     level=["Date", "Drug", "Cell", "Replicate", "Conc /uM", "ImageNumber"]
