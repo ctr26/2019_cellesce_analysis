@@ -216,11 +216,25 @@ raw_df_indexed_bad_cols_finite = raw_df_indexed_bad_cols.reindex(
     raw_df_indexed_bad_cols.index.dropna()
 )
 
-raw_df_indexed_bad_cols_med_finite = raw_df_indexed_bad_cols_med.reindex(
-    raw_df_indexed_bad_cols_med.index.dropna()
-)
+#  %%
 
-# raw_df_indexed_bad_cols
+
+# drugs = list(raw_df_indexed_bad_cols_finite.index.get_level_values("Drug").drop("5FU").unique())
+# cells = list(raw_df_indexed_bad_cols_finite.index.get_level_values("Cell").drop("ISO34").unique())
+
+temp_df = raw_df_indexed_bad_cols_finite.reset_index()
+temp_df = temp_df.loc[
+    ~(
+        (temp_df["Drug"] == "5FU") & (temp_df["Cell"] == "ISO34")
+        )]
+raw_df_indexed_bad_cols_finite = temp_df.set_index(raw_df_indexed_bad_cols_finite.index.names)
+
+
+raw_df_indexed_bad_cols_med_finite = raw_df_indexed_bad_cols_finite.groupby(
+    level=["Date", "Drug", "Cell", "Replicate", "Conc /uM", "ImageNumber"]
+).median()
+
+
 # %% Save CSV
 
 SAVE_CSV = 0
