@@ -979,7 +979,27 @@ if SAVE_FIG:
         )
         # plot.savefig(f"{metadata()}_facet_grid_drug_score_metric_cell_type_population_type.png")
 
+    data = report_df.set_index("Population type")\
+                .xs("Median per Organoid unsorted",drop_level=True)\
+                .reset_index(drop=True)
 
+    plot = sns.catplot(
+        x="Drug",
+        y="Score",
+        col="Metric",
+        # row="Variable",
+        hue="Cell type",
+        data=data,
+        sharey=False,
+        kind="bar",
+        col_wrap=2,
+    ).set_xticklabels(rotation=45)
+    plt.tight_layout()
+    
+    if SAVE_FIG:
+        plot.savefig(
+            f"{metadata()}_square_facet_grid_drug_score_metric_cell_type_hue_population_type_median.pdf"
+        )
 # # %%
 # fractions = y_pred.groupby(["Cell", "Conc /uM", "Drug"]).apply(
 #     (lambda x: x.value_counts())
