@@ -249,6 +249,9 @@ df = (
     .sample(frac=1)
     # .xs("ISO34", level="Cell", drop_level=False)
 )
+
+# df["Type"] = "Nuclei"
+# df.groupby(["Date", "Drug", "Cell", "Replicate", "Conc /uM", "ImageNumber"])
 # df = raw_df_indexed_bad_cols
 df_median = (
     raw_df_indexed_bad_cols_med_finite.select_dtypes("number")
@@ -257,6 +260,8 @@ df_median = (
     # .xs("ISO34", level="Cell", drop_level=False)
 )
 
+
+
 # df_median = raw_df_indexed_bad_cols_med
 # df_median_no_nuclei = df_median.drop(
 #     df_median.filter(like='Nuclei', axis=1).columns,
@@ -264,7 +269,7 @@ df_median = (
 
 # df = raw_df_indexed_bad_cols.xs(CELL,level="Cell",drop_level=False)
 # df_median = raw_df_indexed_bad_cols_med.xs(CELL,level="Cell",drop_level=False)
-
+#  %%
 if SAVE_CSV:
     df.dropna(axis=1).to_csv(csv_name + ".csv")
     df_median.dropna(axis=1).to_csv(csv_name + "_median_per_org.csv")
