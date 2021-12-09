@@ -1135,6 +1135,7 @@ def facet_heat(df):
 # %% Machine learning similarity pairwise
 ML_SIMILARITY_PAIR = 1
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
 CELL = "ISO49"
 # CELLS = {"ISO34", "ISO49"}
@@ -1158,6 +1159,14 @@ if ML_SIMILARITY_PAIR:
         # labels, uniques = pd.factorize(data_in.reset_index()["Drug"])
         # labels = pd.Series(labels,index=data_in.index)
         labels = pd.Series(data_in.index.get_level_values("Drug"), index=data_in.index)
+        X_train, X_test, y_train, y_test = train_test_split(data_in,labels)
+        model = RandomForestClassifier()
+        model.fit(X_train, y_train)
+        model.score(X_train, y_train)
+        ratio_data = pd.DataFrame(model.predict(X_test) == np.array(y_test),index=y_test.index)
+        sum_ratio = ratio_data.groupby("ImageNumber").sum();sum_ratio
+        size_ratio = pd.DataFrame(ratio_data.groupby("ImageNumber").size());size_ratio
+        l = sum_ratio/size_ratio
         # labels = data_in.reset_index()[["Drug"]].\
         #                     apply(lambda x: pd.factorize(x)[0]).\
         #                     set_index(data_in.index)
@@ -1168,10 +1177,11 @@ if ML_SIMILARITY_PAIR:
         for drug_blind in drugs:
             for drug in drugs:
 
+                drugs_to_drop = drugs.drop(["Control", drug_blind])
+
                 X_train = data_in.drop(drugs_to_drop, level="Drug")
                 y_train = labels.drop(drugs_to_drop, level="Drug")
 
-                drugs_to_drop = drugs.drop(["Control", drug_blind])
                 X_train_slim = data_in.drop(drugs_to_drop, level="Drug")
                 min_sample = X_train_slim.groupby("Drug").size().min()
 
@@ -1182,6 +1192,8 @@ if ML_SIMILARITY_PAIR:
                 )
                 X_train = X_train_fair
                 y_train = y_train_fair
+                
+                
                 X_test = data_in.xs(drug, level="Drug", drop_level=False)
                 y_test = labels.xs(drug, level="Drug", drop_level=False)
 
