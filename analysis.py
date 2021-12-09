@@ -1039,7 +1039,7 @@ if SAVE_FIG:
 ML_SIMILARITY = 1
 from sklearn.ensemble import RandomForestClassifier
 
-SAVE_FIG = 0
+# SAVE_FIG = 0
 CELL = "ISO49"
 if ML_SIMILARITY:
     data_in = scaled_df.sample(frac=1)
