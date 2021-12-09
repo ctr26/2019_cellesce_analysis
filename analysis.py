@@ -614,6 +614,34 @@ if RANSAC:
 
 
 # outlier_mask = np.logical_not(inlier_mask)
+#%%  Date histogram 
+
+index_only = scaled_df_median.index.to_frame().reset_index(drop=True)
+
+group_date = index_only[['Date', 'Drug',"Cell"]].\
+            groupby(['Date', 'Drug',"Cell"]).size().reset_index()
+
+plot = sns.histplot(
+    x="Date",
+    weights=0,
+    # col="Metric",
+    # row="Cell",
+    hue="Drug",
+    data=group_date,
+    multiple="stack",
+    # sharex=False
+    # shrink=0.8,
+    # sharey=False,
+    # kind="bar",
+    # stacked=True
+);plt.xticks(rotation=90)
+
+if SAVE_FIG:
+    plt.tight_layout()
+    plot.figure.savefig(
+        f"{metadata()}_date_wise_histogram_drug_counts.pdf"
+    )
+
 # %% IC50 from classification
 from sklearn.model_selection import cross_val_score, KFold, train_test_split
 from sklearn.metrics import plot_confusion_matrix, classification_report
