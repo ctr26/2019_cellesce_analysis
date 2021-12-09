@@ -894,6 +894,10 @@ DATA = {
 
 
 #  %% 
+#  Shouldn't Predict date or Conc from median
+#  Should predict drug from median
+#  Date unsorted vs sorted is worthless
+
 if CLASS_FRACTIONS:
 # SAVE_FIG=1
 report_df = pd.concat(report_tall_list)
