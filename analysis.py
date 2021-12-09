@@ -2009,6 +2009,25 @@ if FLAG_IC50:
         if SAVE_FIG:
             plt.savefig(metadata() + "_" + "violin" "_" + filename + ".pdf")
 
+        # SAVE_FIG = 1
+        cat = sns.catplot(
+            x="Conc /uM",
+            y="Euclidean distance",
+            row="Cell",
+            col="Drug",
+            data=data_euclid_df_subset.reset_index(),
+            sharex=False,
+            sharey=False,
+            # x_estimator=np.median,
+            # x_ci="ci",
+            # x_bins=9,
+            # markers=None,
+            hue="Drug",
+            kind="boxen",
+        )
+        if SAVE_FIG:
+            plt.savefig(metadata() + "_" + "boxen" "_" + filename + ".pdf")
+
         grid_linear = sns.lmplot(
             x="Conc /uM",
             y="Euclidean distance",
