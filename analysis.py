@@ -682,6 +682,15 @@ report_tall_full = pd.DataFrame()
 
 SAVE_FIG = 0
 
+# DATA = {"median":data_in_median,
+#         "data_in_median_sorted":data_in_median_sorted
+#         }
+# DATA = {"median":data_in_median}
+# report_df_dict = {}
+report_tall_list = []
+
+if CLASS_FRACTIONS:
+    for CELL in CELLS:
 data_in_full = scaled_df.sample(frac=1).xs(CELL, level="Cell").sample(frac=1)
 data_in_median = scaled_df_median.xs(CELL, level="Cell").sample(frac=1)
 data_in_median_sorted = scaled_df_median.xs(CELL, level="Cell").sort_index(level="Date")
@@ -693,17 +702,8 @@ DATA = {
     "Median per Organoid sorted by date": data_in_median_sorted,
     "Per Cell sorted by date": data_in_full_sorted,
 }
-# DATA = {"median":data_in_median,
-#         "data_in_median_sorted":data_in_median_sorted
-#         }
-# DATA = {"median":data_in_median}
-# report_df_dict = {}
-report_tall_list = []
-
-if CLASS_FRACTIONS:
     for VARIABLE in VARIABLES:
         for DATA_KEY in DATA:
-            for CELL in CELLS:
                 # data_in = scaled_df.sample(frac=1)
                 # data_in = df_clean.sample(frac=1).sort_index(level="Date")
                 # # data_in = scaled_df.sample(frac=1).xs(CELL, level="Cell").sample(frac=1)
@@ -891,6 +891,8 @@ if CLASS_FRACTIONS:
                 report_tall["Variable"] = VARIABLE
                 report_tall.rename(columns={CELL: "variable_name"})
                 report_tall_list.append(report_tall)
+
+
 #  %% 
 if CLASS_FRACTIONS:
 # SAVE_FIG=1
